@@ -9,11 +9,17 @@ class TableModel(QAbstractTableModel):
         super().__init__()
         self.datos = datos
 
-    def rowCount(self, index):
-        return len(self.datos)
+    def rowCount(self, parent=None):
+        if self.datos is not None:
+            return len(self.datos)
+        else:
+            return 0
 
     def columnCount(self, index):
-        return len(self.datos[0])
+        if self.datos is not None and len(self.datos) > 0:
+            return len(self.datos[0])
+        else:
+            return 0
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if index.isValid():
@@ -28,8 +34,12 @@ class TableModel(QAbstractTableModel):
         return False
 
     def headerData(self, section, orientation, role):
+        headers = ["Nombre", "Hora de registro", "Lugar de registro", "Referencia imagen"]
         if role == Qt.ItemDataRole.DisplayRole:
             if orientation == Qt.Orientation.Horizontal:
-                return ["Nombre", "Hora de registro", "Lugar de registro", "Referencia imagen"][section]
+                if section < len(headers):
+                    return headers[section]
+                else:
+                    return ""  # return an empty string or a default value if section is out of range
             else:
                 return str(section)

@@ -1,13 +1,14 @@
 import sys
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import QSize, Qt, QTimer
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QGridLayout, QVBoxLayout, QHBoxLayout, QWidget,
                              QLabel, QPushButton, QComboBox,  QLineEdit,
-                             QRadioButton, QGroupBox, QTableView, QAbstractItemView,QHeaderView)
+                             QRadioButton, QGroupBox, QTableView, QAbstractItemView,QHeaderView, QMessageBox)
 from tableModel import TableModel
 from DBConnection import DBConnection
+from PyQt6 import QtCore
 
-index_name = "test_index"
+index_name = None
 
 class GUI_Main (QMainWindow):
     def __init__(self):
@@ -24,6 +25,8 @@ class GUI_Main (QMainWindow):
                 background-color: #a3a19b;
             }
         """)
+
+        QApplication.instance().installEventFilter(self)
 
         vBox = QVBoxLayout()
         grid = QGridLayout()
@@ -72,12 +75,14 @@ class GUI_Main (QMainWindow):
         self.addBttn = QPushButton("Añadir")
         self.editBttn = QPushButton("Editar")
         self.delBttn = QPushButton("Borrar")
+        self.srchBttn = QPushButton("Buscar")
         self.addBttn.pressed.connect(self.on_addBttn_pressed)
         self.editBttn.pressed.connect(self.on_editBttn_pressed)
         self.delBttn.pressed.connect(self.on_delBttn_pressed)
 
         buttonBox = QHBoxLayout()
         buttonBox.setAlignment(Qt.AlignmentFlag.AlignTop)
+        buttonBox.addWidget(self.srchBttn)
         buttonBox.addWidget(self.addBttn)
         buttonBox.addWidget(self.editBttn)
         buttonBox.addWidget(self.delBttn)
@@ -86,7 +91,7 @@ class GUI_Main (QMainWindow):
 
         conxBD = DBConnection("https://192.168.1.168:9200", "elastic", "password", index_name)
         conxBD.dbConnect()
-        indexData = conxBD.loadIndex(conxBD.getIndex())
+        indexData = conxBD.loadIndex()
         conxBD.dbClose()
 
         self.indexDataModel = TableModel(indexData)
@@ -102,11 +107,15 @@ class GUI_Main (QMainWindow):
         hBoxButton = QHBoxLayout()
         self.txtIndex = QLineEdit()
         self.txtIndex.setPlaceholderText("Nombre del index")
+        self.txtIndex.installEventFilter(self)
+        self.exitButton = QPushButton("Salir")
         self.indexBttn = QPushButton("Cargar Index")
         self.saveBttn = QPushButton("Guardar Cambios")
         self.cancelBttn = QPushButton("Descartar Cambios")
         self.saveBttn.pressed.connect(self.on_saveBttn_pressed)
         self.cancelBttn.pressed.connect(self.on_cancelBttn_pressed)
+        self.exitButton.clicked.connect(self.confirmExit)
+        self.srchBttn.pressed.connect(self.on_searchBttn_pressed)
         hBoxButton.setAlignment(Qt.AlignmentFlag.AlignRight)
         hBoxButton.addWidget(self.cancelBttn)
         hBoxButton.addWidget(self.saveBttn)
@@ -119,6 +128,7 @@ class GUI_Main (QMainWindow):
         self.indexBttn.pressed.connect(self.changeIndex)
         vBox.addLayout(hBoxButton)
         vBox.addLayout(hBoxIndex)
+        vBox.addWidget(self.exitButton)
 
 
         container = QWidget()
@@ -130,19 +140,24 @@ class GUI_Main (QMainWindow):
         self.show()
 
 
-
-
-    def on_addBttn_pressed(self):
-        self.operacion = "EDIT"
+    def on_searchBttn_pressed(self):
+        self.operacion = "SEARCH"
         self.blockControls(False)
         self.blockBttns(False)
         self.blockEditBttns(True)
-        self.limparControis()
+        self.clearFields()
+
+    def on_addBttn_pressed(self):
+        self.operacion = "ADD"
+        self.blockControls(False)
+        self.blockBttns(False)
+        self.blockEditBttns(True)
+        self.clearFields()
 
     def on_editBttn_pressed (self):
 
         if self.select.hasSelection():
-            self.operacion = "ADD"
+            self.operacion = "EDIT"
             self.blockControls(False)
             self.blockBttns(False)
             self.blockEditBttns(True)
@@ -184,13 +199,16 @@ class GUI_Main (QMainWindow):
                 i = linha.row()
             conxBD = DBConnection("https://192.168.1.168:9200", "elastic", "password", index_name)
             conxBD.dbConnect()
+
+            selected_row_data = self.get_selected_row_data()
+
             data = [self.txtName.text(), self.txtTimestamp.text(), self.txtCoords_1.text(), self.txtCoords_2.text(), self.txtImage.text()]
             query = {
                 "query": {
                     "bool": {
                         "must": [
-                            {"match": {"name": data[0]}},
-                            {"match": {"timestamp": data[1]}}
+                            {"match": {"name": selected_row_data[0]}},
+                            {"match": {"timestamp": selected_row_data[1]}}
                         ]
                     }
                 }
@@ -232,11 +250,76 @@ class GUI_Main (QMainWindow):
             del (self.indexDataModel.datos[i])
             self.indexDataModel.layoutChanged.emit()
 
+        if self.operacion == "SEARCH":
+
+            conxBD = DBConnection("https://192.168.1.168:9200", "elastic", "password", index_name)
+            conxBD.dbConnect()
+
+            if self.txtName.text():
+                name_filter = "term"
+                name_srch1 = "name"
+                name_srch2 = self.txtName.text()
+            else:
+                name_filter = "exists"
+                name_srch1 = "field"
+                name_srch2 = "name"
+
+            if self.txtTimestamp.text():
+                timestamp_filter = "term"
+                timestamp_srch1 = "timestamp"
+                timestamp_srch2 = self.txtTimestamp.text()
+            else:
+                timestamp_filter = "exists"
+                timestamp_srch1 = "field"
+                timestamp_srch2 = "timestamp"
+
+            lat = float(self.txtCoords_1.text()) if self.txtCoords_1.text() else None
+            lon = float(self.txtCoords_2.text()) if self.txtCoords_2.text() else None
+
+            if self.txtImage.text():
+                image_filter = "term"
+                image_srch1 = "image"
+                image_srch2 = self.txtImage.text()
+            else:
+                image_filter = "exists"
+                image_srch1 = "field"
+                image_srch2 = "image"
+
+            aux_query = [
+                            {name_filter: {name_srch1: name_srch2}},
+                            {timestamp_filter: {timestamp_srch1: timestamp_srch2}},
+                            {image_filter: {image_srch1: image_srch2}}
+                        ]
+
+            if lat and lon:
+                aux_query.append({
+                    "geo_distance": {
+                        "distance": "1km",
+                        "pin"
+                        "location": [float(lat), float(lon)]
+                    }
+                })
+
+            query = {
+                "query": {
+                    "bool": {
+                        "must": aux_query
+                    }
+                }
+            }
+
+            indexData = conxBD.searchQuery(query)
+            conxBD.dbClose()
+
+            self.indexDataModel = TableModel(indexData)
+            self.dataTable.setModel(self.indexDataModel)
+            self.select = self.dataTable.selectionModel()
+            self.indexDataModel.layoutChanged.emit()
 
         self.blockControls(True)
         self.blockEditBttns(False)
         self.blockBttns(True)
-        self.limparControis()
+        self.clearFields()
 
 
     def on_cancelBttn_pressed(self):
@@ -244,7 +327,7 @@ class GUI_Main (QMainWindow):
         self.blockControls(True)
         self.blockEditBttns(False)
         self.blockBttns(True)
-        self.limparControis()
+        self.clearFields()
 
     def blockBttns (self, opcion):
         self.saveBttn.setEnabled(not opcion)
@@ -263,7 +346,7 @@ class GUI_Main (QMainWindow):
         self.txtCoords_2.setEnabled(not opcion)
         self.txtImage.setEnabled(not opcion)
 
-    def limparControis (self):
+    def clearFields (self):
         self.txtName.setText('')
         self.txtTimestamp.setText('')
         self.txtCoords_1.setText('')
@@ -275,13 +358,23 @@ class GUI_Main (QMainWindow):
         filas = self.select.selectedRows()
         for fila in filas:
             i = fila.row()
-
             self.txtName.setText(str(self.indexDataModel.datos[i][0]))
             self.txtTimestamp.setText(str(self.indexDataModel.datos[i][1]))
             data = self.indexDataModel.datos[i][2]
             self.txtCoords_1.setText(str(data['lat']))
             self.txtCoords_2.setText(str(data['lon']))
             self.txtImage.setText(str(self.indexDataModel.datos[i][3]))
+
+    def confirmExit(self):
+        QApplication.instance().removeEventFilter(self)
+        reply = QMessageBox.question(self, 'Exit Confirmation',
+                                     "Are you sure you want to exit?", QMessageBox.StandardButton.Yes |
+                                     QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            QApplication.instance().quit()
+        else:
+            QTimer.singleShot(0, lambda: QApplication.instance().installEventFilter(self))
+
 
     def changeIndex(self):
         if self.txtIndex.text() == "":
@@ -298,13 +391,51 @@ class GUI_Main (QMainWindow):
                 print("Error al conectar a: " + conxBD.dbip + ": " + str(e))
                 self.change_index_name(aux)
                 return
-            indexData = conxBD.loadIndex(conxBD.getIndex())
+            indexData = conxBD.loadIndex()
             conxBD.dbClose()
 
+            if index_name == "app_index":
+                self.blockEditBttns(False)
+                self.blockControls(True)
+                self.blockBttns(True)
+            else:
+                self.blockEditBttns(True)
+                self.blockControls(True)
+                self.blockBttns(True)
             self.indexDataModel = TableModel(indexData)
             self.dataTable.setModel(self.indexDataModel)
             self.select = self.dataTable.selectionModel()
             self.indexDataModel.layoutChanged.emit()
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.Type.KeyPress:
+            if isinstance(event, QKeyEvent):
+                if event.key() == Qt.Key.Key_Escape:
+                    self.confirmExit()
+                elif event.key() in (16777220, 16777221) and obj is self.txtIndex and self.txtIndex.hasFocus():
+                    print('Enter pressed')
+                    self.changeIndex()
+        return super().eventFilter(obj, event)
+
+    def get_selected_row_data(self):
+        # Get the selected rows
+        selected_rows = self.select.selectedRows()
+
+        # If there are any selected rows
+        if selected_rows:
+            # Get the first selected row
+            first_selected_row = selected_rows[0]
+
+            # Get the row number
+            row_number = first_selected_row.row()
+
+            # Get the data for this row from the model
+            row_data = self.indexDataModel.datos[row_number]
+
+            return row_data
+
+        # If there are no selected rows, return None
+        return None
 
     @staticmethod
     def change_index_name(new_index_name):

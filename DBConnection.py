@@ -31,32 +31,38 @@ class DBConnection:
                     basic_auth=(self.user,self.password),
                     ssl_context=context
                 )
-
-                index_exists = self.cliente.indices.exists(index= self.index_name)
+                if not self.index_name is None:
+                    index_exists = self.cliente.indices.exists(index= self.index_name)
+                    doc_count = self.cliente.count(index=self.index_name)['count']
+                else:
+                    index_exists = False
+                    doc_count = 1
                 if not index_exists:
                     Exception("Index does not exist")
-                doc_count = self.cliente.count(index=self.index_name)['count']
                 if doc_count == 0:
                     raise Exception("Index is empty")
 
             else:
-                print ("Base de datos ya conectada")
+                print("Conexión de base de datos realizada")
+                print(self.index_name)
 
-        except not Exception as e:
+        except Exception as e:
             print ("Error al conectar a: " + self.dbip + ": " + e)
-        else:
-            print ("Conexión de base de datos realizada")
 
-    def loadIndex(self, index):
+    def loadIndex(self):
         try:
-            response = self.cliente.search(index=index, body={"query": {"match_all": {}}}, size = 1000)
-            results = [hit['_source'] for hit in response['hits']['hits']]
-            df = pd.DataFrame(results)
-            list_of_lists = df.values.tolist()
+            if self.index_name is None:
+                print("No se ha definido un índice")
+                list_of_lists = []
+            else:
+                response = self.cliente.search(index=self.index_name, body={"query": {"match_all": {}}}, size = 1000)
+                results = [hit['_source'] for hit in response['hits']['hits']]
+                df = pd.DataFrame(results)
+                list_of_lists = df.values.tolist()
+                print("Index loaded")
         except Exception as e:
             print("Error loading index: " + str(e))
         else:
-            print("Index loaded")
             return list_of_lists
 
     def addQuery(self, data):
@@ -103,12 +109,12 @@ class DBConnection:
         except dbapi.DatabaseError as e:
             print("Erro facendo a actualización rexistro: " + str(e))
         else:
-            print("Actualización rexistro executada")
+            print("Update done")
 
     def deleteQuery (self, query):
         try:
             if self.cliente is None:
-                print("Realizando borrado rexistro: É necesario realizar a conexión a base de datos previamente")
+                print("Cliente no creado")
             else:
                 response = self.cliente.delete_by_query(index=self.index_name, body=query)
                 print(response)
@@ -117,6 +123,24 @@ class DBConnection:
             print("Error realizando el borrado: " + str(e))
         else:
             print("Borrado de registro ejecutado")
+
+    def searchQuery(self, query):
+        try:
+            if self.index_name is None:
+                print("No se ha definido un índice")
+                list_of_lists = []
+            else:
+                print(query)
+                response = self.cliente.search(index=self.index_name, body=query)
+                results = [hit['_source'] for hit in response['hits']['hits']]
+                df = pd.DataFrame(results)
+                list_of_lists = df.values.tolist()
+                print("Index loaded")
+                print(list_of_lists)
+        except Exception as e:
+            print("Error loading index: " + str(e))
+        else:
+            return list_of_lists
 
 
 
