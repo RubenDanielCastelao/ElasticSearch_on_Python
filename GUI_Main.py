@@ -1,9 +1,9 @@
 import sys
-from PyQt6.QtCore import QSize, Qt, QTimer
-from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtCore import QSize, Qt, QTimer, QRegularExpression, QTime, QDateTime
+from PyQt6.QtGui import QKeyEvent, QIntValidator, QRegularExpressionValidator
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QGridLayout, QVBoxLayout, QHBoxLayout, QWidget,
-                             QLabel, QPushButton, QComboBox,  QLineEdit,
-                             QRadioButton, QGroupBox, QTableView, QAbstractItemView,QHeaderView, QMessageBox)
+                             QLabel, QPushButton, QComboBox,  QLineEdit, QCheckBox,
+                             QRadioButton, QGroupBox, QTableView, QAbstractItemView,QHeaderView, QMessageBox, QSlider, QDateTimeEdit)
 from tableModel import TableModel
 from DBConnection import DBConnection
 from PyQt6 import QtCore
@@ -34,36 +34,84 @@ class GUI_Main (QMainWindow):
 
         vBox.addLayout(grid)
 
-        lblName = QLabel("Nombre")
-        lblTimestamp = QLabel("Hora de registro")
+        lblName = QLabel("Nombre: ")
+        lblTimestamp = QLabel("Hora de registro: ")
         lblCoords = QLabel("Lugar de registro: ")
         lblCoordsLat = QLabel("Lat ")
         lblCoordsLon = QLabel("Lon ")
-        lblImageTxt = QLabel("Referencia imagen")
+        lblSlider = QLabel("Distancia: ")
+        lblImageTxt = QLabel("Referencia imagen: ")
 
-        self.txtName=QLineEdit()
-        self.txtTimestamp = QLineEdit()
-        self.txtCoords_1= QLineEdit()
+
+
+        self.txtName = QLineEdit()
+        self.dateTimeEdit = QDateTimeEdit(self)
+        self.dateTimeEdit.setDisplayFormat("yyyy-MM-dd'T'HH:mm:ss.zzz")
+        self.dateTimeEdit.setDateTime(QDateTime.currentDateTime())
+        self.dateCheck = QCheckBox(" Filtrar por fecha")
+        self.txtCoords_1 = QLineEdit()
         self.txtCoords_2 = QLineEdit()
+        self.txtKmSlider = QLineEdit()
+        self.kmSlider = QSlider(Qt.Orientation.Horizontal, self)
         self.txtImage = QLineEdit()
 
-        coordsLine= QHBoxLayout()
+        self.txtKmSlider.setMaxLength(3)
+        self.txtKmSlider.setFixedWidth(30)
 
-        grid.addWidget(lblName, 0,0,1,1)
+        self.dateCheck.setFixedWidth(150)
+        self.dateCheck.stateChanged.connect(self.toggleDateTimeEdit)
+
+        self.kmSlider.setGeometry(50, 50, 200, 50)
+        self.kmSlider.setMinimum(0)
+        self.kmSlider.setMaximum(100)
+        self.kmSlider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.kmSlider.setTickInterval(2)
+
+        # Connect the slider's valueChanged signal to the updateLineEdit method
+        self.kmSlider.valueChanged.connect(self.updateLineEdit)
+        # Connect the QLineEdit's textChanged signal to the updateSlider method
+        self.txtKmSlider.textChanged.connect(self.updateSlider)
+
+        # Create a QRegExp object with a regular expression that matches only integers
+        regex = QRegularExpression("^\\d*$")
+
+        # Create a QRegExpValidator object with the QRegExp
+        validator = QRegularExpressionValidator(regex)
+
+        # Set the validator on the QLineEdit
+        self.txtKmSlider.setValidator(validator)
+
+        coordsLine = QHBoxLayout()
+        kmLine = QHBoxLayout()
+        hourLine = QHBoxLayout()
+
+        lblSlider.setFixedWidth(90)
+        kmLine.addWidget(lblSlider)
+        kmLine.addWidget(self.txtKmSlider)
+
+        lblName.setFixedWidth(120)
+        grid.addWidget(lblName, 0, 0, 1, 1)
+        lblTimestamp.setFixedWidth(120)
         grid.addWidget(lblTimestamp, 1, 0, 1, 1)
+        lblCoords.setFixedWidth(120)
         grid.addWidget(lblCoords, 2,0,1,1)
-        grid.addWidget(lblImageTxt, 3,0,1,1)
+        grid.addLayout(kmLine, 3,0,1,1)
+        lblImageTxt.setFixedWidth(130)
+        grid.addWidget(lblImageTxt, 4,0,1,1)
 
         coordsLine.addWidget(lblCoordsLat)
         coordsLine.addWidget(self.txtCoords_1)
         coordsLine.addWidget(lblCoordsLon)
         coordsLine.addWidget(self.txtCoords_2)
 
-        grid.addWidget(self.txtName, 0,1,1,1)
-        grid.addWidget(self.txtTimestamp, 1,1,1,1)
-        grid.addLayout(coordsLine, 2,1,1,1)
-        grid.addWidget(self.txtImage, 3,1,1,1)
+        hourLine.addWidget(self.dateTimeEdit)
+        hourLine.addWidget(self.dateCheck)
 
+        grid.addWidget(self.txtName, 0,1,1,1)
+        grid.addLayout(hourLine, 1,1,1,1)
+        grid.addLayout(coordsLine, 2,1,1,1)
+        grid.addWidget(self.kmSlider, 3,1,1,1)
+        grid.addWidget(self.txtImage, 4,1,1,1)
 
         vBoxTable = QVBoxLayout()
 
@@ -108,6 +156,7 @@ class GUI_Main (QMainWindow):
         self.txtIndex = QLineEdit()
         self.txtIndex.setPlaceholderText("Nombre del index")
         self.txtIndex.installEventFilter(self)
+        self.txtIndex.installEventFilter(self)
         self.exitButton = QPushButton("Salir")
         self.indexBttn = QPushButton("Cargar Index")
         self.saveBttn = QPushButton("Guardar Cambios")
@@ -130,6 +179,7 @@ class GUI_Main (QMainWindow):
         vBox.addLayout(hBoxIndex)
         vBox.addWidget(self.exitButton)
 
+        self.txtIndex.setFocus()
 
         container = QWidget()
 
@@ -146,6 +196,9 @@ class GUI_Main (QMainWindow):
         self.blockBttns(False)
         self.blockEditBttns(True)
         self.clearFields()
+        self.txtKmSlider.setText('0')
+        self.dateCheck.setChecked(True)
+        self.txtName.setFocus()
 
     def on_addBttn_pressed(self):
         self.operacion = "ADD"
@@ -153,6 +206,10 @@ class GUI_Main (QMainWindow):
         self.blockBttns(False)
         self.blockEditBttns(True)
         self.clearFields()
+        self.txtKmSlider.setEnabled(False)
+        self.kmSlider.setEnabled(False)
+        self.dateCheck.setEnabled(False)
+        self.txtName.setFocus()
 
     def on_editBttn_pressed (self):
 
@@ -161,7 +218,11 @@ class GUI_Main (QMainWindow):
             self.blockControls(False)
             self.blockBttns(False)
             self.blockEditBttns(True)
-            self.cargarCamposDendeSeleccion()
+            self.loadFieldsFromSelection()
+            self.txtKmSlider.setEnabled(False)
+            self.kmSlider.setEnabled(False)
+            self.dateCheck.setEnabled(False)
+            self.txtName.setFocus()
         else:
             print ("Selecciona una fila")
 
@@ -172,7 +233,11 @@ class GUI_Main (QMainWindow):
             self.blockControls(False)
             self.blockBttns(False)
             self.blockEditBttns(True)
-            self.cargarCamposDendeSeleccion()
+            self.loadFieldsFromSelection()
+            self.txtKmSlider.setEnabled(False)
+            self.kmSlider.setEnabled(False)
+            self.dateCheck.setEnabled(False)
+            self.delBttn.setFocus()
             print ("Pulse o botón gardar para borrar")
         else:
             print ("Selecciona una fila")
@@ -183,13 +248,13 @@ class GUI_Main (QMainWindow):
             conxBD = DBConnection("https://192.168.1.168:9200", "elastic", "password", index_name)
             conxBD.dbConnect()
 
-            data = [self.txtName.text(), self.txtTimestamp.text(), self.txtCoords_1.text(), self.txtCoords_2.text(), self.txtImage.text()]
+            data = [self.txtName.text(), self.dateTimeEdit.text(), self.txtCoords_1.text(), self.txtCoords_2.text(), self.txtImage.text()]
             conxBD.addQuery(data)
 
             conxBD.dbClose()
             self.indexDataModel.datos.append ((data[0],
                                            data[1],
-                                           {"lat": data[2], "lon": data[3]},
+                                           {"lat": float(data[2]), "lon": float(data[3])},
                                            data[4]))
             self.indexDataModel.layoutChanged.emit()
 
@@ -202,17 +267,21 @@ class GUI_Main (QMainWindow):
 
             selected_row_data = self.get_selected_row_data()
 
-            data = [self.txtName.text(), self.txtTimestamp.text(), self.txtCoords_1.text(), self.txtCoords_2.text(), self.txtImage.text()]
+            data = [self.txtName.text(), self.dateTimeEdit.text(), self.txtCoords_1.text(), self.txtCoords_2.text(), self.txtImage.text()]
+
             query = {
                 "query": {
                     "bool": {
                         "must": [
                             {"match": {"name": selected_row_data[0]}},
-                            {"match": {"timestamp": selected_row_data[1]}}
+                            {"match": {"timestamp": selected_row_data[1]}},
+                            {"match": {"image": selected_row_data[3]}}
                         ]
                     }
                 }
             }
+
+            print(query)
 
             conxBD.updateQuery(data, query)
 
@@ -238,7 +307,8 @@ class GUI_Main (QMainWindow):
                     "bool": {
                         "must": [
                             {"match": {"name": self.txtName.text()}},
-                            {"match": {"timestamp": self.txtTimestamp.text()}}
+                            {"match": {"timestamp": self.dateTimeEdit.date().toString("yyyy-MM-dd") + "T" + self.dateTimeEdit.time().toString("HH:mm:ss")}},
+                            {"match": {"image": self.txtImage.text()}}
                         ]
                     }
                 }
@@ -256,18 +326,18 @@ class GUI_Main (QMainWindow):
             conxBD.dbConnect()
 
             if self.txtName.text():
-                name_filter = "term"
+                name_filter = "wildcard"
                 name_srch1 = "name"
-                name_srch2 = self.txtName.text()
+                name_srch2 = "*"+self.txtName.text()+"*"
             else:
                 name_filter = "exists"
                 name_srch1 = "field"
                 name_srch2 = "name"
 
-            if self.txtTimestamp.text():
-                timestamp_filter = "term"
+            if self.dateCheck.isChecked():
+                timestamp_filter = "match"
                 timestamp_srch1 = "timestamp"
-                timestamp_srch2 = self.txtTimestamp.text()
+                timestamp_srch2 = self.dateTimeEdit.date().toString("yyyy-MM-dd") + "T" + self.dateTimeEdit.time().toString("HH:mm:ss")
             else:
                 timestamp_filter = "exists"
                 timestamp_srch1 = "field"
@@ -276,10 +346,12 @@ class GUI_Main (QMainWindow):
             lat = float(self.txtCoords_1.text()) if self.txtCoords_1.text() else None
             lon = float(self.txtCoords_2.text()) if self.txtCoords_2.text() else None
 
+            distance = self.txtKmSlider.text() + "km"
+
             if self.txtImage.text():
-                image_filter = "term"
+                image_filter = "wildcard"
                 image_srch1 = "image"
-                image_srch2 = self.txtImage.text()
+                image_srch2 = "*"+self.txtImage.text()+"*"
             else:
                 image_filter = "exists"
                 image_srch1 = "field"
@@ -294,9 +366,8 @@ class GUI_Main (QMainWindow):
             if lat and lon:
                 aux_query.append({
                     "geo_distance": {
-                        "distance": "1km",
-                        "pin"
-                        "location": [float(lat), float(lon)]
+                        "distance": distance,
+                        "location": {"lat": float(lat), "lon": float(lon)}
                     }
                 })
 
@@ -337,29 +408,45 @@ class GUI_Main (QMainWindow):
         self.editBttn.setEnabled(not opcion)
         self.addBttn.setEnabled(not opcion)
         self.delBttn.setEnabled(not opcion)
+        self.srchBttn.setEnabled(not opcion)
 
 
     def blockControls(self, opcion):
         self.txtName.setEnabled(not opcion)
-        self.txtTimestamp.setEnabled(not opcion)
+        self.dateTimeEdit.setEnabled(not opcion)
         self.txtCoords_1.setEnabled(not opcion)
         self.txtCoords_2.setEnabled(not opcion)
         self.txtImage.setEnabled(not opcion)
+        self.txtKmSlider.setEnabled(not opcion)
+        self.kmSlider.setEnabled(not opcion)
+        self.dateCheck.setEnabled(not opcion)
 
     def clearFields (self):
         self.txtName.setText('')
-        self.txtTimestamp.setText('')
+        self.dateTimeEdit.setDateTime(QDateTime.currentDateTime())
         self.txtCoords_1.setText('')
         self.txtCoords_2.setText('')
         self.txtImage.setText('')
+        self.txtKmSlider.setText('')
+        self.kmSlider.setValue(0)
+        self.dateCheck.setChecked(False)
 
-
-    def cargarCamposDendeSeleccion(self):
+    def loadFieldsFromSelection(self):
         filas = self.select.selectedRows()
         for fila in filas:
             i = fila.row()
             self.txtName.setText(str(self.indexDataModel.datos[i][0]))
-            self.txtTimestamp.setText(str(self.indexDataModel.datos[i][1]))
+
+            # Convert the string to a QDateTime object
+            datetime_str = str(self.indexDataModel.datos[i][1])
+
+            # Truncate the microseconds
+            datetime_str = datetime_str[:23]
+
+            datetime_obj = QDateTime.fromString(datetime_str, "yyyy-MM-dd'T'HH:mm:ss.zzz")
+
+            self.dateTimeEdit.setDateTime(datetime_obj)
+
             data = self.indexDataModel.datos[i][2]
             self.txtCoords_1.setText(str(data['lat']))
             self.txtCoords_2.setText(str(data['lon']))
@@ -402,6 +489,7 @@ class GUI_Main (QMainWindow):
                 self.blockEditBttns(True)
                 self.blockControls(True)
                 self.blockBttns(True)
+
             self.indexDataModel = TableModel(indexData)
             self.dataTable.setModel(self.indexDataModel)
             self.select = self.dataTable.selectionModel()
@@ -436,6 +524,38 @@ class GUI_Main (QMainWindow):
 
         # If there are no selected rows, return None
         return None
+
+    def updateLineEdit(self):
+        # Get the current value of the slider
+        slider_value = self.kmSlider.value()
+        # Update the QLineEdit's text with the slider's value
+        self.txtKmSlider.setText(str(slider_value))
+
+    def updateSlider(self):
+        # Get the current text of the QLineEdit
+        line_edit_text = self.txtKmSlider.text()
+        if line_edit_text == '':
+            # If the QLineEdit is empty, set the QSlider's value to 0
+            self.kmSlider.setValue(0)
+        else:
+            try:
+                # Try to convert the text to an integer
+                value = int(line_edit_text)
+            except ValueError:
+                # If the conversion fails, return from the method without updating the QSlider
+                return
+            # If the conversion succeeds, update the QSlider's value
+            self.kmSlider.setValue(value)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.txtIndex.setFocus()
+
+    def toggleDateTimeEdit(self):
+        if self.dateCheck.isChecked():
+            self.dateTimeEdit.setEnabled(True)
+        else:
+            self.dateTimeEdit.setEnabled(False)
 
     @staticmethod
     def change_index_name(new_index_name):

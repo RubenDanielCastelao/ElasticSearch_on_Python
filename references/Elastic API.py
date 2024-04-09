@@ -100,6 +100,3 @@ for i in range(len(doc["hits"]["hits"])):
    client.update(index="test_index", id=doc_id, body={"doc": doc_body})
 '''
 
-a = client.indices.get_alias(name="[^\\.]*")
-
-print(a)
