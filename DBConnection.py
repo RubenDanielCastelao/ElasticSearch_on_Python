@@ -74,8 +74,8 @@ class DBConnection:
                     'name': data[0],
                     'timestamp': data[1],
                     'location': {
-                        "lat": float(data[2]),
-                        "lon": float(data[3])
+                        "lat": format(float(data[2]), '.15f'),  # Format the latitude
+                        "lon": format(float(data[3]), '.15f')  # Format the longitude
                     },
                     'image': data[4]
                 }
@@ -102,7 +102,8 @@ class DBConnection:
                     # Once you have the id, make an update request
                     doc_body["name"] = data[0]
                     doc_body["timestamp"] = data[1]
-                    doc_body["location"] = {"lat": data[2], "lon": data[3]}
+                    doc_body["location"] = {"lat": format(float(data[2]), '.15f'),
+                                            "lon": format(float(data[3]), '.15f')}  # Format the coordinates
                     doc_body["image"] = data[4]
                     self.cliente.update(index=self.index_name, id=doc_id, body={"doc": doc_body})
 
@@ -110,7 +111,6 @@ class DBConnection:
             print("Error durante actualización de datos: " + str(e))
         else:
             print("Update done")
-
     def deleteQuery (self, query):
         try:
             if self.cliente is None:

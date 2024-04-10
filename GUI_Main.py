@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtCore import QSize, Qt, QTimer, QRegularExpression, QTime, QDateTime
-from PyQt6.QtGui import QKeyEvent, QIntValidator, QRegularExpressionValidator
+from PyQt6.QtGui import QKeyEvent, QIntValidator, QRegularExpressionValidator, QClipboard
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QGridLayout, QVBoxLayout, QHBoxLayout, QWidget,
                              QLabel, QPushButton, QComboBox,  QLineEdit, QCheckBox,
                              QRadioButton, QGroupBox, QTableView, QAbstractItemView,QHeaderView, QMessageBox, QSlider, QDateTimeEdit)
@@ -52,9 +52,6 @@ class GUI_Main (QMainWindow):
 
         vBox = QVBoxLayout()
         grid = QGridLayout()
-
-        map = folium.Map(location=[43.3623, -5.8448], zoom_start=13)
-        map.save("map.html")
 
         vBox.addLayout(grid)
 
@@ -141,6 +138,7 @@ class GUI_Main (QMainWindow):
         self.dataTable = QTableView()
         self.dataTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.dataTable.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.dataTable.doubleClicked.connect(self.copy_cell_data)
         vBoxTable.addWidget(self.dataTable)
 
         self.addBttn = QPushButton("Añadir")
@@ -226,6 +224,7 @@ class GUI_Main (QMainWindow):
         self.blockEditBttns(True)
         self.clearFields()
         self.txtKmSlider.setText('0')
+        self.dateTimeEdit.setEnabled(False)
         self.txtName.setFocus()
         self.reloadModel()
 
@@ -620,6 +619,16 @@ class GUI_Main (QMainWindow):
         self.dataTable.setModel(self.indexDataModel)
         self.select = self.dataTable.selectionModel()
         self.indexDataModel.layoutChanged.emit()
+
+    def copy_cell_data(self, index):
+        # Get the model from the index
+        model = index.model()
+
+        # Get the data for the clicked cell
+        cell_data = model.data(index)
+
+        # Copy the data to the clipboard
+        QApplication.clipboard().setText(str(cell_data))
 
     @staticmethod
     def change_index_name(new_index_name):
