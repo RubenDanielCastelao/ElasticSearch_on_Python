@@ -84,7 +84,7 @@ class DBConnection:
                 self.cliente.indices.refresh(index=self.index_name)
 
         except dbapi.DatabaseError as e:
-            print("Erro facendo a inserción: " + str(e))
+            print("Error durante inserción de datos: " + str(e))
         else:
             print("Inserción executada")
 
@@ -107,7 +107,7 @@ class DBConnection:
                     self.cliente.update(index=self.index_name, id=doc_id, body={"doc": doc_body})
 
         except dbapi.DatabaseError as e:
-            print("Erro facendo a actualización rexistro: " + str(e))
+            print("Error durante actualización de datos: " + str(e))
         else:
             print("Update done")
 

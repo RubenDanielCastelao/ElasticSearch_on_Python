@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QGridLayout, QVBoxLayout
 from tableModel import TableModel
 from DBConnection import DBConnection
 from PyQt6 import QtCore
+import os
+
 
 index_name = None
 
@@ -24,6 +26,26 @@ class GUI_Main (QMainWindow):
             QMainWindow {
                 background-color: #a3a19b;
             }
+            QPushButton:disabled {
+                background-color: #D3D3D3;
+                color: #808080;
+            }
+            QLineEdit:disabled {
+                background-color: #D3D3D3;
+                color: #808080;
+            }
+            QCheckBox:disabled {
+                background-color: #a3a19b;
+                color: #808080;
+            }
+            QDateTimeEdit:disabled {
+                background-color: #D3D3D3;
+                color: #808080;
+            }
+            QSlider:disabled {
+                background-color: #D3D3D3;
+                color: #808080;
+            }
         """)
 
         QApplication.instance().installEventFilter(self)
@@ -31,6 +53,8 @@ class GUI_Main (QMainWindow):
         vBox = QVBoxLayout()
         grid = QGridLayout()
 
+        map = folium.Map(location=[43.3623, -5.8448], zoom_start=13)
+        map.save("map.html")
 
         vBox.addLayout(grid)
 
@@ -41,8 +65,6 @@ class GUI_Main (QMainWindow):
         lblCoordsLon = QLabel("Lon ")
         lblSlider = QLabel("Distancia: ")
         lblImageTxt = QLabel("Referencia imagen: ")
-
-
 
         self.txtName = QLineEdit()
         self.dateTimeEdit = QDateTimeEdit(self)
@@ -60,6 +82,7 @@ class GUI_Main (QMainWindow):
 
         self.dateCheck.setFixedWidth(150)
         self.dateCheck.stateChanged.connect(self.toggleDateTimeEdit)
+        self.dateCheck.installEventFilter(self)
 
         self.kmSlider.setGeometry(50, 50, 200, 50)
         self.kmSlider.setMinimum(0)
@@ -97,7 +120,7 @@ class GUI_Main (QMainWindow):
         grid.addWidget(lblCoords, 2,0,1,1)
         grid.addLayout(kmLine, 3,0,1,1)
         lblImageTxt.setFixedWidth(130)
-        grid.addWidget(lblImageTxt, 4,0,1,1)
+        grid.addWidget(lblImageTxt, 5,0,1,1)
 
         coordsLine.addWidget(lblCoordsLat)
         coordsLine.addWidget(self.txtCoords_1)
@@ -111,7 +134,7 @@ class GUI_Main (QMainWindow):
         grid.addLayout(hourLine, 1,1,1,1)
         grid.addLayout(coordsLine, 2,1,1,1)
         grid.addWidget(self.kmSlider, 3,1,1,1)
-        grid.addWidget(self.txtImage, 4,1,1,1)
+        grid.addWidget(self.txtImage, 5,1,1,1)
 
         vBoxTable = QVBoxLayout()
 
@@ -125,8 +148,13 @@ class GUI_Main (QMainWindow):
         self.delBttn = QPushButton("Borrar")
         self.srchBttn = QPushButton("Buscar")
         self.addBttn.pressed.connect(self.on_addBttn_pressed)
+        self.addBttn.setShortcut("Ctrl+A")
         self.editBttn.pressed.connect(self.on_editBttn_pressed)
+        self.editBttn.setShortcut("Ctrl+E")
         self.delBttn.pressed.connect(self.on_delBttn_pressed)
+        self.delBttn.setShortcut("Ctrl+D")
+        self.srchBttn.pressed.connect(self.on_searchBttn_pressed)
+        self.srchBttn.setShortcut("Ctrl+F")
 
         buttonBox = QHBoxLayout()
         buttonBox.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -162,9 +190,10 @@ class GUI_Main (QMainWindow):
         self.saveBttn = QPushButton("Guardar Cambios")
         self.cancelBttn = QPushButton("Descartar Cambios")
         self.saveBttn.pressed.connect(self.on_saveBttn_pressed)
+        self.saveBttn.setShortcut("Shift+Return")
         self.cancelBttn.pressed.connect(self.on_cancelBttn_pressed)
+        self.cancelBttn.setShortcut("Shift+Backspace")
         self.exitButton.clicked.connect(self.confirmExit)
-        self.srchBttn.pressed.connect(self.on_searchBttn_pressed)
         hBoxButton.setAlignment(Qt.AlignmentFlag.AlignRight)
         hBoxButton.addWidget(self.cancelBttn)
         hBoxButton.addWidget(self.saveBttn)
@@ -197,8 +226,8 @@ class GUI_Main (QMainWindow):
         self.blockEditBttns(True)
         self.clearFields()
         self.txtKmSlider.setText('0')
-        self.dateCheck.setChecked(True)
         self.txtName.setFocus()
+        self.reloadModel()
 
     def on_addBttn_pressed(self):
         self.operacion = "ADD"
@@ -503,6 +532,30 @@ class GUI_Main (QMainWindow):
                 elif event.key() in (16777220, 16777221) and obj is self.txtIndex and self.txtIndex.hasFocus():
                     print('Enter pressed')
                     self.changeIndex()
+                elif event.key() in (16777220, 16777221) and obj is self.txtName and self.txtName.hasFocus():
+                    if not self.dateCheck.isEnabled():
+                        self.dateTimeEdit.setFocus()
+                    else:
+                        self.dateCheck.setFocus()
+                elif event.key() in (16777220, 16777221) and obj is self.dateCheck and self.dateCheck.hasFocus():
+                    if self.dateCheck.isChecked():
+                        self.dateTimeEdit.setFocus()
+                    else:
+                        self.txtCoords_1.setFocus()
+                elif event.key() in (16777220, 16777221) and obj is self.dateTimeEdit and self.dateTimeEdit.hasFocus():
+                    self.txtCoords_1.setFocus()
+                elif event.key() in (16777220, 16777221) and obj is self.txtCoords_1 and self.txtCoords_1.hasFocus():
+                    self.txtCoords_2.setFocus()
+                elif event.key() in (16777220, 16777221) and obj is self.txtCoords_2 and self.txtCoords_2.hasFocus():
+                    self.txtKmSlider.setFocus()
+                elif event.key() in (16777220, 16777221) and obj is self.txtKmSlider and self.txtKmSlider.hasFocus():
+                    self.txtImage.setFocus()
+                elif event.key() in (16777220, 16777221) and obj is self.txtImage and self.txtImage.hasFocus():
+                    self.saveBttn.setFocus()
+                if event.key() == Qt.Key.Key_Space and obj is self.dateCheck and self.dateCheck.hasFocus():
+                    # Toggle the checkbox state
+                    self.dateCheck.setChecked(not self.dateCheck.isChecked())
+                    return True
         return super().eventFilter(obj, event)
 
     def get_selected_row_data(self):
@@ -556,6 +609,17 @@ class GUI_Main (QMainWindow):
             self.dateTimeEdit.setEnabled(True)
         else:
             self.dateTimeEdit.setEnabled(False)
+
+    def reloadModel(self):
+        conxBD = DBConnection("https://192.168.1.168:9200", "elastic", "password", index_name)
+        conxBD.dbConnect()
+        indexData = conxBD.loadIndex()
+        conxBD.dbClose()
+
+        self.indexDataModel = TableModel(indexData)
+        self.dataTable.setModel(self.indexDataModel)
+        self.select = self.dataTable.selectionModel()
+        self.indexDataModel.layoutChanged.emit()
 
     @staticmethod
     def change_index_name(new_index_name):
