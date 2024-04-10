@@ -56,7 +56,8 @@ class GUI_Main (QMainWindow):
         vBox.addLayout(grid)
 
         lblName = QLabel("Nombre: ")
-        lblTimestamp = QLabel("Hora de registro: ")
+        lblTimestamp = QLabel("Hora de registro de: ")
+        lblTimestamp_2 = QLabel(" a ")
         lblCoords = QLabel("Lugar de registro: ")
         lblCoordsLat = QLabel("Lat ")
         lblCoordsLon = QLabel("Lon ")
@@ -65,8 +66,9 @@ class GUI_Main (QMainWindow):
 
         self.txtName = QLineEdit()
         self.dateTimeEdit = QDateTimeEdit(self)
+        self.dateTimeEditRange = QDateTimeEdit(self)
         self.dateTimeEdit.setDisplayFormat("yyyy-MM-dd'T'HH:mm:ss.zzz")
-        self.dateTimeEdit.setDateTime(QDateTime.currentDateTime())
+        self.dateTimeEditRange.setDisplayFormat("yyyy-MM-dd'T'HH:mm:ss.zzz")
         self.dateCheck = QCheckBox(" Filtrar por fecha")
         self.txtCoords_1 = QLineEdit()
         self.txtCoords_2 = QLineEdit()
@@ -111,7 +113,7 @@ class GUI_Main (QMainWindow):
 
         lblName.setFixedWidth(120)
         grid.addWidget(lblName, 0, 0, 1, 1)
-        lblTimestamp.setFixedWidth(120)
+        lblTimestamp.setFixedWidth(150)
         grid.addWidget(lblTimestamp, 1, 0, 1, 1)
         lblCoords.setFixedWidth(120)
         grid.addWidget(lblCoords, 2,0,1,1)
@@ -124,7 +126,12 @@ class GUI_Main (QMainWindow):
         coordsLine.addWidget(lblCoordsLon)
         coordsLine.addWidget(self.txtCoords_2)
 
+        self.dateTimeEdit.setMinimumSize(250, 0)
+        self.dateTimeEditRange.setMinimumSize(250, 0)
+
         hourLine.addWidget(self.dateTimeEdit)
+        hourLine.addWidget(lblTimestamp_2)
+        hourLine.addWidget(self.dateTimeEditRange)
         hourLine.addWidget(self.dateCheck)
 
         grid.addWidget(self.txtName, 0,1,1,1)
@@ -225,6 +232,7 @@ class GUI_Main (QMainWindow):
         self.clearFields()
         self.txtKmSlider.setText('0')
         self.dateTimeEdit.setEnabled(False)
+        self.dateTimeEditRange.setEnabled(False)
         self.txtName.setFocus()
         self.reloadModel()
 
@@ -237,6 +245,7 @@ class GUI_Main (QMainWindow):
         self.txtKmSlider.setEnabled(False)
         self.kmSlider.setEnabled(False)
         self.dateCheck.setEnabled(False)
+        self.dateTimeEditRange.setEnabled(False)
         self.txtName.setFocus()
 
     def on_editBttn_pressed (self):
@@ -250,6 +259,7 @@ class GUI_Main (QMainWindow):
             self.txtKmSlider.setEnabled(False)
             self.kmSlider.setEnabled(False)
             self.dateCheck.setEnabled(False)
+            self.dateTimeEditRange.setEnabled(False)
             self.txtName.setFocus()
         else:
             print ("Selecciona una fila")
@@ -265,6 +275,7 @@ class GUI_Main (QMainWindow):
             self.txtKmSlider.setEnabled(False)
             self.kmSlider.setEnabled(False)
             self.dateCheck.setEnabled(False)
+            self.dateTimeEditRange.setEnabled(False)
             self.delBttn.setFocus()
             print ("Pulse o botón gardar para borrar")
         else:
@@ -356,16 +367,22 @@ class GUI_Main (QMainWindow):
             if self.txtName.text():
                 name_filter = "wildcard"
                 name_srch1 = "name"
-                name_srch2 = "*"+self.txtName.text()+"*"
+                name_srch2 = "*" + self.txtName.text() + "*"
             else:
                 name_filter = "exists"
                 name_srch1 = "field"
                 name_srch2 = "name"
 
             if self.dateCheck.isChecked():
-                timestamp_filter = "match"
+                timestamp_filter = "range"
                 timestamp_srch1 = "timestamp"
-                timestamp_srch2 = self.dateTimeEdit.date().toString("yyyy-MM-dd") + "T" + self.dateTimeEdit.time().toString("HH:mm:ss")
+                timestamp_srch2 = {
+                    "gte": self.dateTimeEdit.date().toString("yyyy-MM-dd") + "T" + self.dateTimeEdit.time().toString(
+                        "HH:mm:ss"),
+                    "lte": self.dateTimeEditRange.date().toString(
+                        "yyyy-MM-dd") + "T" + self.dateTimeEditRange.time().toString("HH:mm:ss"),
+                    "format": "yyyy-MM-dd'T'HH:mm:ss"
+                }
             else:
                 timestamp_filter = "exists"
                 timestamp_srch1 = "field"
@@ -379,17 +396,17 @@ class GUI_Main (QMainWindow):
             if self.txtImage.text():
                 image_filter = "wildcard"
                 image_srch1 = "image"
-                image_srch2 = "*"+self.txtImage.text()+"*"
+                image_srch2 = "*" + self.txtImage.text() + "*"
             else:
                 image_filter = "exists"
                 image_srch1 = "field"
                 image_srch2 = "image"
 
             aux_query = [
-                            {name_filter: {name_srch1: name_srch2}},
-                            {timestamp_filter: {timestamp_srch1: timestamp_srch2}},
-                            {image_filter: {image_srch1: image_srch2}}
-                        ]
+                {name_filter: {name_srch1: name_srch2}},
+                {timestamp_filter: {timestamp_srch1: timestamp_srch2}},
+                {image_filter: {image_srch1: image_srch2}}
+            ]
 
             if lat and lon:
                 aux_query.append({
@@ -412,8 +429,6 @@ class GUI_Main (QMainWindow):
 
             self.indexDataModel = TableModel(indexData)
             self.dataTable.setModel(self.indexDataModel)
-            self.select = self.dataTable.selectionModel()
-            self.indexDataModel.layoutChanged.emit()
 
         self.blockControls(True)
         self.blockEditBttns(False)
@@ -442,6 +457,7 @@ class GUI_Main (QMainWindow):
     def blockControls(self, opcion):
         self.txtName.setEnabled(not opcion)
         self.dateTimeEdit.setEnabled(not opcion)
+        self.dateTimeEditRange.setEnabled(not opcion)
         self.txtCoords_1.setEnabled(not opcion)
         self.txtCoords_2.setEnabled(not opcion)
         self.txtImage.setEnabled(not opcion)
@@ -482,13 +498,11 @@ class GUI_Main (QMainWindow):
 
     def confirmExit(self):
         QApplication.instance().removeEventFilter(self)
-        reply = QMessageBox.question(self, 'Exit Confirmation',
-                                     "Are you sure you want to exit?", QMessageBox.StandardButton.Yes |
+        reply = QMessageBox.question(self, '¿Salir?',
+                                     "¿Estás seguro de que quieres salir?", QMessageBox.StandardButton.Yes |
                                      QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             QApplication.instance().quit()
-        else:
-            QTimer.singleShot(0, lambda: QApplication.instance().installEventFilter(self))
 
 
     def changeIndex(self):
@@ -542,6 +556,8 @@ class GUI_Main (QMainWindow):
                     else:
                         self.txtCoords_1.setFocus()
                 elif event.key() in (16777220, 16777221) and obj is self.dateTimeEdit and self.dateTimeEdit.hasFocus():
+                    self.dateTimeEditRange.setFocus()
+                elif event.key() in (16777220, 16777221) and obj is self.dateTimeEditRange and self.dateTimeEditRange.hasFocus():
                     self.txtCoords_1.setFocus()
                 elif event.key() in (16777220, 16777221) and obj is self.txtCoords_1 and self.txtCoords_1.hasFocus():
                     self.txtCoords_2.setFocus()
@@ -606,8 +622,10 @@ class GUI_Main (QMainWindow):
     def toggleDateTimeEdit(self):
         if self.dateCheck.isChecked():
             self.dateTimeEdit.setEnabled(True)
+            self.dateTimeEditRange.setEnabled(True)
         else:
             self.dateTimeEdit.setEnabled(False)
+            self.dateTimeEditRange.setEnabled(False)
 
     def reloadModel(self):
         conxBD = DBConnection("https://192.168.1.168:9200", "elastic", "password", index_name)
@@ -619,6 +637,8 @@ class GUI_Main (QMainWindow):
         self.dataTable.setModel(self.indexDataModel)
         self.select = self.dataTable.selectionModel()
         self.indexDataModel.layoutChanged.emit()
+
+
 
     def copy_cell_data(self, index):
         # Get the model from the index
